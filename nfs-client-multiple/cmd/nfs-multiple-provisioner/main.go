@@ -88,6 +88,10 @@ func main() {
 	flagInit()
 	kubeInit()
 
+	if e := os.Mkdir(mountBase, 0777); e != nil {
+		glog.Exitf("Mkdir for mountBase %s failed, %v", mountBase, e)
+	}
+
 	p, e := provision.NewNfsProvisioner(mountBase, provisioner, kc)
 	if e != nil {
 		glog.Exitf("NewNfsProvisioner failed, %v", e)
