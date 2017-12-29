@@ -1,0 +1,8 @@
+apiVersion: storage.k8s.io/v1beta1
+kind: StorageClass
+metadata:
+  name: nfs-001
+provisioner: nfs # or choose another name, must match deployment's env ENV_PROVISION_NAME'
+  server: 192.168.3.4
+  exportPath: /export/nfs/data1
+  readOnly: false
