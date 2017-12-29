@@ -1,0 +1,41 @@
+kind: Deployment
+apiVersion: extensions/v1beta1
+metadata:
+  name: nfs-multiple-provisioner
+spec:
+  replicas: 1
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        caicloud-app: nfs-multiple-provisioner
+        caicloud.io/cluster-service: "true"
+        kubernetes-admin.caicloud.io/application: nfs-multiple-provisioner-v0.0.1
+        kubernetes-admin.caicloud.io/type: application
+        version: v0.0.1
+    spec:
+      containers:
+        - name: nfs-multiple-provisioner
+          image: cargo.caicloudprivatetest.com/caicloud/nfs-multiple-provisioner:v0.0.1
+          env:
+            - name: ENV_KUBE_MASTER
+              value: ""
+            - name: ENV_KUBE_CONFIG
+              value: ""
+            - name: ENV_LOG_LEVEL
+              value: info
+            - name: ENV_LOG_VERBOSITY
+              value: "0"
+            - name: ENV_MOUNT_BASE
+              value: /caicloud/external-storage/mnt-nfs
+            - name: ENV_PROVISION_NAME
+              value: nfs
+            - name: ENV_FAILED_DELETE_THRESHOLD
+              value: "15"
+            - name: ENV_FAILED_PROVISION_THRESHOLD
+              value: "15"
+            - name: ENV_CLEAN_UP_INTERVAL_SECOND
+              value: "600"
