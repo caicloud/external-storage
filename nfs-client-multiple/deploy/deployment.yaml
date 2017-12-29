@@ -40,3 +40,5 @@ spec:
               value: "15"
             - name: ENV_CLEAN_UP_INTERVAL_SECOND
               value: "600"
+          securityContext:
+            privileged: true
