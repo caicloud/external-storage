@@ -33,12 +33,13 @@ spec:
             - name: ENV_MOUNT_BASE
               value: /caicloud/external-storage/mnt-nfs
             - name: ENV_PROVISION_NAME
-              value: nfs
+              value: caicloud.io/nfs
             - name: ENV_FAILED_DELETE_THRESHOLD
               value: "15"
             - name: ENV_FAILED_PROVISION_THRESHOLD
               value: "15"
             - name: ENV_CLEAN_UP_INTERVAL_SECOND
               value: "600"
+          imagePullPolicy: Always
           securityContext:
             privileged: true
