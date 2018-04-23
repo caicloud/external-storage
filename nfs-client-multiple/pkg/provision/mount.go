@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 
 	"github.com/golang/glog"
 	"k8s.io/apimachinery/pkg/util/uuid"
@@ -44,8 +45,15 @@ func (mh *MountHandler) GetMountPath() string {
 	return mh.mountPath
 }
 
+func (mh *MountHandler) GetStatus() int32 {
+	return atomic.LoadInt32(&mh.status)
+}
+func (mh *MountHandler) SetStatus(status int32) {
+	atomic.StoreInt32(&mh.status, status)
+}
+
 func (mh *MountHandler) AddVolume(volName string) (string, error) {
-	if len(mh.mountPath) == 0 || mh.status == MountStatusMounted {
+	if len(mh.mountPath) == 0 || mh.GetStatus() != MountStatusMounted {
 		return "", ErrNotMountedYet
 	}
 	if len(filepath.Clean(volName)) == 0 {
@@ -68,9 +76,11 @@ func (mh *MountHandler) Mount(mountBase string, mountOptions []string, mounter m
 		return err
 	}
 	if !notMnt { // TODO someone else mount here?
+		glog.Errorf("IsLikelyNotMountPoint %s mounted", dir)
 		return nil
 	}
 	if err := os.MkdirAll(dir, 0750); err != nil {
+		glog.Errorf("MkdirAll %s failed, %v", dir, err)
 		return err
 	}
 	source := fmt.Sprintf("%s:%s", mh.server, mh.exportPath)
@@ -101,18 +111,18 @@ func (mh *MountHandler) Mount(mountBase string, mountOptions []string, mounter m
 		os.Remove(dir)
 		return err
 	}
-	mh.status = MountStatusMounted
+	mh.SetStatus(MountStatusMounted)
 	mh.mountPath = dir
 	return nil
 }
 
 func (mh *MountHandler) Unmount(mounter mount.Interface) error {
-	if len(mh.mountPath) == 0 || mh.status == MountStatusMounted {
+	if len(mh.mountPath) == 0 || mh.GetStatus() != MountStatusMounted {
 		return ErrNotMountedYet
 	}
 	e := util.UnmountPath(mh.mountPath, mounter)
 	if notMnt, _ := mounter.IsLikelyNotMountPoint(mh.mountPath); notMnt {
-		mh.status = MountStatusUnmounted
+		mh.SetStatus(MountStatusUnmounted)
 	}
 	return e
 }
