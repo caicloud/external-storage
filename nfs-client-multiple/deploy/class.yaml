@@ -1,8 +1,9 @@
-apiVersion: storage.k8s.io/v1beta1
+apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
   name: nfs-001
-provisioner: nfs # or choose another name, must match deployment's env ENV_PROVISION_NAME'
+  provisioner: caicloud.io/nfs # or choose another name, must match deployment's env ENV_PROVISION_NAME'
+parameters:
   server: 192.168.3.4
   exportPath: /export/nfs/data1
   readOnly: false

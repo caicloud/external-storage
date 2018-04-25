@@ -19,7 +19,7 @@ const (
 
 const (
 	DefaultMountBase                = "/caicloud/external-storage/mnt-nfs"
-	DefaultProvisionerName          = "nfs"
+	DefaultProvisionerName          = "caicloud.io/nfs"
 	DefaultCleanUpIntervalSecond    = 600
 	DefaultFailedDeleteThreshold    = controller.DefaultFailedDeleteThreshold
 	DefaultFailedProvisionThreshold = controller.DefaultFailedProvisionThreshold
@@ -33,6 +33,12 @@ const (
 	MountStatusNew       = 0
 	MountStatusMounted   = 1
 	MountStatusUnmounted = 2
+
+	MountOptNolock = "nolock"
+)
+
+var (
+	DefaultMountOpts = []string{MountOptNolock}
 )
 
 var (

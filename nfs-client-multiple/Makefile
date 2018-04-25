@@ -26,7 +26,7 @@
 #
 
 # Current version of the project.
-VERSION ?= v0.0.1
+VERSION ?= v0.0.2-alpha.1
 GIT_SHA=$(shell git rev-parse --short HEAD)
 TAGS=$(GIT_SHA)
 
