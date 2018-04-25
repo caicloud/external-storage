@@ -62,12 +62,14 @@ func (p *NfsProvisioner) Provision(options controller.VolumeOptions) (*corev1.Pe
 
 	mh, e := p.mm.Get(options.Parameters)
 	if e != nil {
+		glog.Errorf("Get failed, %v", e)
 		return nil, e
 	}
 	defer p.mm.Return(mh)
 
 	dirPath, e := mh.AddVolume(pvName)
 	if e != nil {
+		glog.Errorf("AddVolume failed, %v", e)
 		return nil, errors.New("unable to create directory to provision new pv: " + e.Error())
 	}
 	os.Chmod(dirPath, 0777)
@@ -94,6 +96,7 @@ func (p *NfsProvisioner) Provision(options controller.VolumeOptions) (*corev1.Pe
 			},
 		},
 	}
+	glog.Infof("done")
 	return pv, nil
 }
 
@@ -105,6 +108,7 @@ func (p *NfsProvisioner) Delete(volume *corev1.PersistentVolume) error {
 
 	mh, e := p.mm.GetByPath(server, exportPath)
 	if e != nil {
+		glog.Errorf("GetByPath failed, %v", e)
 		return e
 	}
 	defer p.mm.Return(mh)
@@ -114,6 +118,7 @@ func (p *NfsProvisioner) Delete(volume *corev1.PersistentVolume) error {
 	glog.V(4).Infof("archiving path %s to %s", oldPath, archivePath)
 	e = os.Rename(oldPath, archivePath)
 	if e != nil {
+		glog.Errorf("Rename failed, %v", e)
 		return e
 	}
 	go func() {

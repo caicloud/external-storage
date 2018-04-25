@@ -19,7 +19,7 @@ const (
 
 const (
 	DefaultMountBase                = "/caicloud/external-storage/mnt-nfs"
-	DefaultProvisionerName          = "nfs"
+	DefaultProvisionerName          = "caicloud.io/nfs"
 	DefaultCleanUpIntervalSecond    = 600
 	DefaultFailedDeleteThreshold    = controller.DefaultFailedDeleteThreshold
 	DefaultFailedProvisionThreshold = controller.DefaultFailedProvisionThreshold

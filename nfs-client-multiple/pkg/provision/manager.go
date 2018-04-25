@@ -78,8 +78,11 @@ func (mm *MountManager) getCache(key string) *MountHandler {
 }
 
 func (mm *MountManager) Return(mh *MountHandler) {
-	key := mh.GetKey()
+	if mh.GetStatus() != MountStatusMounted {
+		return
+	}
 
+	key := mh.GetKey()
 	prev := mm.getCache(key)
 	if prev == nil {
 		mm.l.Lock()
