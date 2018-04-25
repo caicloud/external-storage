@@ -63,7 +63,7 @@ func (mm *MountManager) GetByPath(server, exportPath string) (*MountHandler, err
 	if e != nil {
 		return nil, e
 	}
-	e = mh.Mount(mm.mountBase, nil, mm.mounter)
+	e = mh.Mount(mm.mountBase, DefaultMountOpts, mm.mounter)
 	if e != nil {
 		return nil, e
 	}
