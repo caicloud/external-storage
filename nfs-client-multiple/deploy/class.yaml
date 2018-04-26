@@ -4,6 +4,6 @@ metadata:
   name: nfs-001
   provisioner: caicloud.io/nfs # or choose another name, must match deployment's env ENV_PROVISION_NAME'
 parameters:
-  server: 192.168.3.4
-  exportPath: /export/nfs/data1
+  server: 192.168.17.32
+  exportPath: /root/zxq/data/nfs
   readOnly: false

@@ -4,7 +4,7 @@ metadata:
   name: test-nfs-pvc
   namespace: default
   annotations:
-    volume.beta.kubernetes.io/storage-class: "nfs"
+    volume.beta.kubernetes.io/storage-class: "nfs-001"
 spec:
   accessModes:
     - ReadWriteMany
