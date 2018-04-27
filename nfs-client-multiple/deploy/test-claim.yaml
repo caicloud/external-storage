@@ -2,9 +2,9 @@ kind: PersistentVolumeClaim
 apiVersion: v1
 metadata:
   name: test-nfs-pvc
-  namespace: test
+  namespace: default
   annotations:
-    volume.beta.kubernetes.io/storage-class: "nfs"
+    volume.beta.kubernetes.io/storage-class: "nfs-001"
 spec:
   accessModes:
     - ReadWriteMany

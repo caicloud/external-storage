@@ -33,6 +33,12 @@ const (
 	MountStatusNew       = 0
 	MountStatusMounted   = 1
 	MountStatusUnmounted = 2
+
+	MountOptNolock = "nolock"
+)
+
+var (
+	DefaultMountOpts = []string{MountOptNolock}
 )
 
 var (

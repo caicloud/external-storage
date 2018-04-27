@@ -5,12 +5,12 @@ metadata:
 spec:
   containers:
   - name: test-pod
-    image: gcr.io/google_containers/busybox:1.24
+    image: cargo.caicloudprivatetest.com/caicloud/storage-nfs-multiple-provisioner:v0.0.2-alpha.1
     command:
       - "/bin/sh"
     args:
       - "-c"
-      - "touch /mnt/SUCCESS && exit 0 || exit 1"
+      - "touch /mnt/SUCCESS && mkdir /mnt/DIR && echo xxx > /mnt/DIR/FFF && exit 0 || exit 1"
     volumeMounts:
       - name: nfs-pvc
         mountPath: "/mnt"
