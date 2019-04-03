@@ -31,9 +31,9 @@ func NewNfsProvisioner(mountBase, provisioner string, kc kubernetes.Interface) (
 		return nil, e
 	}
 	return &NfsProvisioner{
-		provisioner: provisioner,
-		kc:          kc,
-		mm:          mm,
+		provisioner:              provisioner,
+		kc:                       kc,
+		mm:                       mm,
 		failedDeleteThreshold:    DefaultFailedDeleteThreshold,
 		failedProvisionThreshold: DefaultFailedProvisionThreshold,
 		cleanUpIntervalSecond:    DefaultCleanUpIntervalSecond,
@@ -171,11 +171,11 @@ func (p *NfsProvisioner) Run(stopCh chan struct{}) {
 		p.provisioner,
 		p,
 		serverVersion.GitVersion,
-		func(c *controller.ProvisionController) error {
-			c.SetFailedDeleteThreshold(p.failedDeleteThreshold)
-			c.SetFailedProvisionThreshold(p.failedProvisionThreshold)
-			return nil
-		})
+		controller.FailedDeleteThreshold(p.failedDeleteThreshold),
+		controller.FailedProvisionThreshold(p.failedProvisionThreshold),
+		controller.LeaderElection(false),
+	)
+
 	go c.Run(stopCh)
 	go p.cleanUp(stopCh)
 	<-stopCh

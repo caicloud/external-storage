@@ -9,7 +9,6 @@ import (
 	"github.com/golang/glog"
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/kubernetes/pkg/util/mount"
-	"k8s.io/kubernetes/pkg/volume"
 	"k8s.io/kubernetes/pkg/volume/util"
 )
 
@@ -84,7 +83,7 @@ func (mh *MountHandler) Mount(mountBase string, mountOptions []string, mounter m
 		return err
 	}
 	source := fmt.Sprintf("%s:%s", mh.server, mh.exportPath)
-	mountOptions = volume.JoinMountOptions(mountOptions, nil)
+	mountOptions = util.JoinMountOptions(mountOptions, nil)
 	err = mounter.Mount(source, dir, "nfs", mountOptions)
 	if err != nil {
 		notMnt, mntErr := mounter.IsLikelyNotMountPoint(dir)

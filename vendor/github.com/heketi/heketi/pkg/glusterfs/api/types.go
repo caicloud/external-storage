@@ -18,8 +18,37 @@ package api
 
 import (
 	"fmt"
+	"regexp"
 	"sort"
+
+	"github.com/go-ozzo/ozzo-validation"
+	"github.com/go-ozzo/ozzo-validation/is"
 )
+
+var (
+	// Restricting the deviceName to much smaller subset of Unix Path
+	// as unix path takes almost everything except NULL
+	deviceNameRe = regexp.MustCompile("^/[a-zA-Z0-9_./-]+$")
+
+	// Volume name constraints decided by looking at
+	// "cli_validate_volname" function in cli-cmd-parser.c of gluster code
+	volumeNameRe = regexp.MustCompile("^[a-zA-Z0-9_-]+$")
+
+	blockVolNameRe = regexp.MustCompile("^[a-zA-Z0-9_-]+$")
+
+	tagNameRe = regexp.MustCompile("^[a-zA-Z0-9_.-]+$")
+)
+
+// ValidateUUID is written this way because heketi UUID does not
+// conform to neither UUID v4 nor v5.
+func ValidateUUID(value interface{}) error {
+	s, _ := value.(string)
+	err := validation.Validate(s, validation.RuneLength(32, 32), is.Hexadecimal)
+	if err != nil {
+		return fmt.Errorf("%v is not a valid UUID", s)
+	}
+	return nil
+}
 
 // State
 type EntryState string
@@ -31,6 +60,15 @@ const (
 	EntryStateFailed  EntryState = "failed"
 )
 
+func ValidateEntryState(value interface{}) error {
+	s, _ := value.(EntryState)
+	err := validation.Validate(s, validation.Required, validation.In(EntryStateOnline, EntryStateOffline, EntryStateFailed))
+	if err != nil {
+		return fmt.Errorf("%v is not valid state", s)
+	}
+	return nil
+}
+
 type DurabilityType string
 
 const (
@@ -39,9 +77,24 @@ const (
 	DurabilityEC             DurabilityType = "disperse"
 )
 
+func ValidateDurabilityType(value interface{}) error {
+	s, _ := value.(DurabilityType)
+	err := validation.Validate(s, validation.Required, validation.In(DurabilityReplicate, DurabilityDistributeOnly, DurabilityEC))
+	if err != nil {
+		return fmt.Errorf("%v is not a valid durability type", s)
+	}
+	return nil
+}
+
 // Common
 type StateRequest struct {
 	State EntryState `json:"state"`
+}
+
+func (statereq StateRequest) Validate() error {
+	return validation.ValidateStruct(&statereq,
+		validation.Field(&statereq.State, validation.Required, validation.By(ValidateEntryState)),
+	)
 }
 
 // Storage values in KB
@@ -54,6 +107,35 @@ type StorageSize struct {
 type HostAddresses struct {
 	Manage  sort.StringSlice `json:"manage"`
 	Storage sort.StringSlice `json:"storage"`
+}
+
+func ValidateManagementHostname(value interface{}) error {
+	s, _ := value.(sort.StringSlice)
+	for _, fqdn := range s {
+		err := validation.Validate(fqdn, validation.Required, is.Host)
+		if err != nil {
+			return fmt.Errorf("%v is not a valid manage hostname", s)
+		}
+	}
+	return nil
+}
+
+func ValidateStorageHostname(value interface{}) error {
+	s, _ := value.(sort.StringSlice)
+	for _, ip := range s {
+		err := validation.Validate(ip, validation.Required, is.Host)
+		if err != nil {
+			return fmt.Errorf("%v is not a valid storage hostname", s)
+		}
+	}
+	return nil
+}
+
+func (hostadd HostAddresses) Validate() error {
+	return validation.ValidateStruct(&hostadd,
+		validation.Field(&hostadd.Manage, validation.Required, validation.By(ValidateManagementHostname)),
+		validation.Field(&hostadd.Storage, validation.Required, validation.By(ValidateStorageHostname)),
+	)
 }
 
 // Brick
@@ -70,12 +152,29 @@ type BrickInfo struct {
 
 // Device
 type Device struct {
-	Name string `json:"name"`
+	Name string            `json:"name"`
+	Tags map[string]string `json:"tags,omitempty"`
+}
+
+func (dev Device) Validate() error {
+	return validation.ValidateStruct(&dev,
+		validation.Field(&dev.Name, validation.Required, validation.Match(deviceNameRe)),
+		validation.Field(&dev.Tags, validation.By(ValidateTags)),
+	)
 }
 
 type DeviceAddRequest struct {
 	Device
-	NodeId string `json:"node"`
+	NodeId      string `json:"node"`
+	DestroyData bool   `json:"destroydata,omitempty"`
+}
+
+func (devAddReq DeviceAddRequest) Validate() error {
+	return validation.ValidateStruct(&devAddReq,
+		validation.Field(&devAddReq.Device, validation.Required),
+		validation.Field(&devAddReq.NodeId, validation.Required, validation.By(ValidateUUID)),
+		validation.Field(&devAddReq.DestroyData, validation.In(true, false)),
+	)
 }
 
 type DeviceInfo struct {
@@ -92,9 +191,19 @@ type DeviceInfoResponse struct {
 
 // Node
 type NodeAddRequest struct {
-	Zone      int           `json:"zone"`
-	Hostnames HostAddresses `json:"hostnames"`
-	ClusterId string        `json:"cluster"`
+	Zone      int               `json:"zone"`
+	Hostnames HostAddresses     `json:"hostnames"`
+	ClusterId string            `json:"cluster"`
+	Tags      map[string]string `json:"tags,omitempty"`
+}
+
+func (req NodeAddRequest) Validate() error {
+	return validation.ValidateStruct(&req,
+		validation.Field(&req.Zone, validation.Required, validation.Min(1)),
+		validation.Field(&req.Hostnames, validation.Required),
+		validation.Field(&req.ClusterId, validation.Required, validation.By(ValidateUUID)),
+		validation.Field(&req.Tags, validation.By(ValidateTags)),
+	)
 }
 
 type NodeInfo struct {
@@ -109,12 +218,17 @@ type NodeInfoResponse struct {
 }
 
 // Cluster
+
+type ClusterFlags struct {
+	Block bool `json:"block"`
+	File  bool `json:"file"`
+}
+
 type Cluster struct {
 	Volumes []VolumeInfoResponse `json:"volumes"`
 	Nodes   []NodeInfoResponse   `json:"nodes"`
 	Id      string               `json:"id"`
-	Block   bool                 `json:"block"`
-	File    bool                 `json:"file"`
+	ClusterFlags
 }
 
 type TopologyInfoResponse struct {
@@ -122,16 +236,18 @@ type TopologyInfoResponse struct {
 }
 
 type ClusterCreateRequest struct {
-	Block bool `json:"block"`
-	File  bool `json:"file"`
+	ClusterFlags
+}
+
+type ClusterSetFlagsRequest struct {
+	ClusterFlags
 }
 
 type ClusterInfoResponse struct {
-	Id           string           `json:"id"`
-	Nodes        sort.StringSlice `json:"nodes"`
-	Volumes      sort.StringSlice `json:"volumes"`
-	Block        bool             `json:"block"`
-	File         bool             `json:"file"`
+	Id      string           `json:"id"`
+	Nodes   sort.StringSlice `json:"nodes"`
+	Volumes sort.StringSlice `json:"volumes"`
+	ClusterFlags
 	BlockVolumes sort.StringSlice `json:"blockvolumes"`
 }
 
@@ -157,7 +273,7 @@ type VolumeDurabilityInfo struct {
 }
 
 type VolumeCreateRequest struct {
-	// Size in GB
+	// Size in GiB
 	Size                 int                  `json:"size"`
 	Clusters             []string             `json:"clusters,omitempty"`
 	Name                 string               `json:"name"`
@@ -169,6 +285,21 @@ type VolumeCreateRequest struct {
 		Enable bool    `json:"enable"`
 		Factor float32 `json:"factor"`
 	} `json:"snapshot"`
+}
+
+func (volCreateRequest VolumeCreateRequest) Validate() error {
+	return validation.ValidateStruct(&volCreateRequest,
+		validation.Field(&volCreateRequest.Size, validation.Required, validation.Min(1)),
+		validation.Field(&volCreateRequest.Clusters, validation.By(ValidateUUID)),
+		validation.Field(&volCreateRequest.Name, validation.Match(volumeNameRe)),
+		validation.Field(&volCreateRequest.Durability, validation.Skip),
+		validation.Field(&volCreateRequest.Gid, validation.Skip),
+		validation.Field(&volCreateRequest.GlusterVolumeOptions, validation.Skip),
+		validation.Field(&volCreateRequest.Block, validation.In(true, false)),
+		// This is possibly a bug in validation lib, ignore next two lines for now
+		// validation.Field(&volCreateRequest.Snapshot.Enable, validation.In(true, false)),
+		// validation.Field(&volCreateRequest.Snapshot.Factor, validation.Min(1.0)),
+	)
 }
 
 type VolumeInfo struct {
@@ -201,15 +332,41 @@ type VolumeExpandRequest struct {
 	Size int `json:"expand_size"`
 }
 
+func (volExpandReq VolumeExpandRequest) Validate() error {
+	return validation.ValidateStruct(&volExpandReq,
+		validation.Field(&volExpandReq.Size, validation.Required, validation.Min(1)),
+	)
+}
+
+type VolumeCloneRequest struct {
+	Name string `json:"name,omitempty"`
+}
+
+func (vcr VolumeCloneRequest) Validate() error {
+	return validation.ValidateStruct(&vcr,
+		validation.Field(&vcr.Name, validation.Match(volumeNameRe)),
+	)
+}
+
 // BlockVolume
 
 type BlockVolumeCreateRequest struct {
-	// Size in GB
+	// Size in GiB
 	Size     int      `json:"size"`
 	Clusters []string `json:"clusters,omitempty"`
 	Name     string   `json:"name"`
 	Hacount  int      `json:"hacount,omitempty"`
 	Auth     bool     `json:"auth,omitempty"`
+}
+
+func (blockVolCreateReq BlockVolumeCreateRequest) Validate() error {
+	return validation.ValidateStruct(&blockVolCreateReq,
+		validation.Field(&blockVolCreateReq.Size, validation.Required, validation.Min(1)),
+		validation.Field(&blockVolCreateReq.Clusters, validation.By(ValidateUUID)),
+		validation.Field(&blockVolCreateReq.Name, validation.Match(blockVolNameRe)),
+		validation.Field(&blockVolCreateReq.Hacount, validation.Min(1)),
+		validation.Field(&blockVolCreateReq.Auth, validation.Skip),
+	)
 }
 
 type BlockVolumeInfo struct {
@@ -235,6 +392,60 @@ type BlockVolumeInfoResponse struct {
 
 type BlockVolumeListResponse struct {
 	BlockVolumes []string `json:"blockvolumes"`
+}
+
+type LogLevelInfo struct {
+	// should contain one or more logger to log-level-name mapping
+	LogLevel map[string]string `json:"loglevel"`
+}
+
+type TagsChangeType string
+
+const (
+	UnknownTagsChangeType TagsChangeType = ""
+	SetTags               TagsChangeType = "set"
+	UpdateTags            TagsChangeType = "update"
+	DeleteTags            TagsChangeType = "delete"
+)
+
+// Common tag post body
+type TagsChangeRequest struct {
+	Tags   map[string]string `json:"tags"`
+	Change TagsChangeType    `json:"change_type"`
+}
+
+func (tcr TagsChangeRequest) Validate() error {
+	return validation.ValidateStruct(&tcr,
+		validation.Field(&tcr.Tags, validation.By(ValidateTags)),
+		validation.Field(&tcr.Change,
+			validation.Required,
+			validation.In(SetTags, UpdateTags, DeleteTags)))
+}
+
+func ValidateTags(v interface{}) error {
+	t, ok := v.(map[string]string)
+	if !ok {
+		return fmt.Errorf("tags must be a map of strings to strings")
+	}
+	if len(t) > 32 {
+		return fmt.Errorf("too many tags specified (%v), up to %v supported",
+			len(t), 32)
+	}
+	for k, v := range t {
+		if len(k) == 0 {
+			return fmt.Errorf("tag names may not be empty")
+		}
+		if err := validation.Validate(k, validation.RuneLength(1, 32)); err != nil {
+			return fmt.Errorf("tag name %v: %v", k, err)
+		}
+		if err := validation.Validate(v, validation.RuneLength(0, 64)); err != nil {
+			return fmt.Errorf("value of tag %v: %v", k, err)
+		}
+		if !tagNameRe.MatchString(k) {
+			return fmt.Errorf("invalid characters in tag name %+v", k)
+		}
+	}
+	return nil
 }
 
 // Constructors
