@@ -26,7 +26,7 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	"github.com/kubernetes-incubator/external-storage/lib/controller"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -34,6 +34,9 @@ import (
 	"k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/kubernetes/pkg/volume"
+
+	"github.com/kubernetes-incubator/external-storage/lib/controller"
 )
 
 const (
@@ -138,7 +141,7 @@ func (p *cephFSProvisioner) Provision(options controller.VolumeOptions) (*v1.Per
 		Spec: v1.PersistentVolumeSpec{
 			PersistentVolumeReclaimPolicy: options.PersistentVolumeReclaimPolicy,
 			AccessModes:                   options.PVC.Spec.AccessModes,
-			Capacity: v1.ResourceList{ //FIXME: kernel cephfs doesn't enforce quota, capacity is not meaningless here.
+			Capacity: v1.ResourceList{ // FIXME: kernel cephfs doesn't enforce quota, capacity is not meaningless here.
 				v1.ResourceName(v1.ResourceStorage): options.PVC.Spec.Resources.Requests[v1.ResourceName(v1.ResourceStorage)],
 			},
 			PersistentVolumeSource: v1.PersistentVolumeSource{
@@ -199,6 +202,42 @@ func (p *cephFSProvisioner) Delete(volume *v1.PersistentVolume) error {
 	}
 
 	return nil
+}
+
+func (p *cephFSProvisioner) ExpandVolumeDevice(spec *volume.Spec, newSize resource.Quantity, oldSize resource.Quantity) (resource.Quantity, error) {
+	if newSize.Cmp(oldSize) <= 0 {
+		return oldSize, fmt.Errorf("newSize must greater than oldSize")
+	}
+
+	scn := spec.PersistentVolume.Spec.StorageClassName
+	sc, err := p.client.StorageV1().StorageClasses().Get(scn, metav1.GetOptions{})
+	if err != nil {
+		return oldSize, err
+	}
+	cluster, adminID, adminSecret, mon, err := p.parseParameters(sc.Parameters)
+	if err != nil {
+		return oldSize, err
+	}
+
+	path := spec.PersistentVolume.Spec.CephFS.Path
+	size := fmt.Sprintf("%d", newSize.Value())
+	cmd := exec.Command(provisionCmd, "--path", path, "--size", size)
+	cmd.Env = []string{
+		"CEPH_CLUSTER_NAME=" + cluster,
+		"CEPH_MON=" + strings.Join(mon[:], ","),
+		"CEPH_AUTH_ID=" + adminID,
+		"CEPH_AUTH_KEY=" + adminSecret}
+
+	output, cmdErr := cmd.CombinedOutput()
+	if cmdErr != nil {
+		glog.Errorf("failed to expand volume %s, err: %s, output: %s", spec.PersistentVolume.Name, cmdErr, string(output))
+		return oldSize, cmdErr
+	}
+
+	return newSize, nil
+}
+func (p *cephFSProvisioner) RequiresFSResize() bool {
+	return false
 }
 
 func (p *cephFSProvisioner) parseParameters(parameters map[string]string) (string, string, string, []string, error) {
